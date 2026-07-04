@@ -607,19 +607,19 @@ namespace Dreamy.EditorTools.Scene
 
         private sealed class SceneToolbarElement : MainToolbarElement
         {
-            public SceneToolbarElement()
+            public override VisualElement CreateElement()
             {
-                Add(CreateSceneToolbarContent());
                 ApplyPlayModeStartScene();
+                return CreateSceneToolbarContent();
             }
         }
 
         private sealed class TimeToolbarElement : MainToolbarElement
         {
-            public TimeToolbarElement()
+            public override VisualElement CreateElement()
             {
-                Add(CreateTimeToolbarContent());
                 ApplyPlayModeStartScene();
+                return CreateTimeToolbarContent();
             }
         }
 #else
