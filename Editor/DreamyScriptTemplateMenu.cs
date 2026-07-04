@@ -8,6 +8,7 @@ namespace Dreamy.EditorTools
     {
         private const string SaveDataTemplateName = "NewSaveData.cs";
         private const string GameServiceTemplateName = "NewGameService.cs";
+        private const string DataConfigTemplateName = "NewConfig.cs";
 
         [MenuItem("Assets/Create/Dreamy/Script/Save Data", priority = 81)]
         public static void CreateSaveDataScript()
@@ -19,6 +20,12 @@ namespace Dreamy.EditorTools
         public static void CreateGameServiceScript()
         {
             CreateScript(GameServiceTemplateName, GameServiceTemplate);
+        }
+
+        [MenuItem("Assets/Create/Dreamy/Script/Data Config", priority = 83)]
+        public static void CreateDataConfigScript()
+        {
+            CreateScript(DataConfigTemplateName, DataConfigTemplate);
         }
 
         private static void CreateScript(string fileName, string content)
@@ -71,6 +78,20 @@ public sealed class NewGameService : INewGameService
     public void Initialize()
     {
     }
+}
+";
+
+        private const string DataConfigTemplate =
+@"using Dreamy.DataConfig;
+
+public sealed class NewConfig : DataConfigRow
+{
+    public string Name { get; set; }
+}
+
+[DataConfig(""new_configs"")]
+public sealed class NewConfigTable : DataConfigTable<NewConfig>
+{
 }
 ";
     }
