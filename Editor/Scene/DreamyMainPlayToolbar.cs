@@ -19,6 +19,10 @@ namespace Dreamy.EditorTools.Scene
     {
         private const string SceneToolbarElementId = "Dreamy/Scene Controls";
         private const string TimeToolbarElementId = "Dreamy/Time Scale";
+        private const string SceneToolbarLabel = "Scene Controls";
+        private const string SceneToolbarTooltip = "Open, reload, and choose Dreamy project scenes.";
+        private const string TimeToolbarLabel = "Time Scale";
+        private const string TimeToolbarTooltip = "Set the game time scale.";
 
         private const string PlayFromBootstrapKeyPrefix =
             "Dreamy.EditorTools.PlayFromBootstrap.";
@@ -30,6 +34,8 @@ namespace Dreamy.EditorTools.Scene
         private const float SceneToolbarWidth = 390f;
         private const float TimeToolbarWidth = 150f;
         private const float ToolbarHeight = 22f;
+        private const float MinTimeScale = 0f;
+        private const float MaxTimeScale = 4f;
 
         private static readonly float[] TimeScales =
         {
@@ -497,6 +503,7 @@ namespace Dreamy.EditorTools.Scene
 
         private static void SetSavedTimeScale(float value)
         {
+            value = Mathf.Clamp(value, MinTimeScale, MaxTimeScale);
             EditorPrefs.SetFloat(GetProjectScopedTimeScaleKey(), value);
             if (EditorApplication.isPlaying)
             {
@@ -590,11 +597,44 @@ namespace Dreamy.EditorTools.Scene
             }
         }
 
+#if UNITY_6000_1_OR_NEWER
+        [MainToolbarElement(SceneToolbarElementId, defaultDockPosition = MainToolbarDockPosition.Left)]
+        public static MainToolbarElement InstantiateSceneToolbar()
+        {
+            ApplyPlayModeStartScene();
+            return new DreamySceneMainToolbarElement();
+        }
+
+        [MainToolbarElement(TimeToolbarElementId, defaultDockPosition = MainToolbarDockPosition.Left)]
+        public static MainToolbarElement InstantiateTimeScaleToolbar()
+        {
+            MainToolbarContent content = new MainToolbarContent(
+                TimeToolbarLabel,
+                TimeToolbarTooltip);
+
+            return new MainToolbarSlider(
+                content,
+                EditorApplication.isPlaying ? Time.timeScale : GetSavedTimeScale(),
+                MinTimeScale,
+                MaxTimeScale,
+                SetSavedTimeScale);
+        }
+
+        private sealed class DreamySceneMainToolbarElement : MainToolbarElement
+        {
+            public DreamySceneMainToolbarElement()
+            {
+                tooltip = SceneToolbarTooltip;
+                Add(CreateSceneToolbarContent());
+            }
+        }
+#else
         [EditorToolbarElement(SceneToolbarElementId)]
         private sealed class SceneToolbarElement : VisualElement
         {
             public SceneToolbarElement()
             {
+                tooltip = SceneToolbarTooltip;
                 Add(CreateSceneToolbarContent());
                 ApplyPlayModeStartScene();
             }
@@ -605,9 +645,11 @@ namespace Dreamy.EditorTools.Scene
         {
             public TimeToolbarElement()
             {
+                tooltip = TimeToolbarTooltip;
                 Add(CreateTimeToolbarContent());
                 ApplyPlayModeStartScene();
             }
         }
+#endif
     }
 }
