@@ -594,33 +594,115 @@ namespace Dreamy.EditorTools.Scene
 
 #if UNITY_6000_4_OR_NEWER
         [MainToolbarElement(SceneToolbarElementId, defaultDockPosition = MainToolbarDockPosition.Left)]
-        public static MainToolbarElement InstantiateSceneToolbar()
+        public static IEnumerable<MainToolbarElement> InstantiateSceneToolbar()
         {
-            return new SceneToolbarElement();
+            ApplyPlayModeStartScene();
+
+            yield return new MainToolbarButton(
+                new MainToolbarContent("Prev", "Open previous enabled scene"),
+                OpenPreviousScene);
+
+            yield return new MainToolbarDropdown(
+                new MainToolbarContent("Scenes", SceneToolbarTooltip),
+                ShowSceneDropdown);
+
+            yield return new MainToolbarButton(
+                new MainToolbarContent("Reload", "Reload current scene"),
+                ReloadCurrentScene);
+
+            yield return new MainToolbarButton(
+                new MainToolbarContent("Next", "Open next enabled scene"),
+                OpenNextScene);
+
+            yield return new MainToolbarDropdown(
+                new MainToolbarContent("Start Scene", "Choose Play Mode start scene"),
+                ShowStartSceneDropdown);
         }
 
         [MainToolbarElement(TimeToolbarElementId, defaultDockPosition = MainToolbarDockPosition.Left)]
         public static MainToolbarElement InstantiateTimeScaleToolbar()
         {
-            return new TimeToolbarElement();
+            MainToolbarContent content = new MainToolbarContent(
+                "Time Scale",
+                TimeToolbarTooltip);
+
+            return new MainToolbarSlider(
+                content,
+                EditorApplication.isPlaying ? Time.timeScale : GetSavedTimeScale(),
+                MinTimeScale,
+                MaxTimeScale,
+                SetSavedTimeScale);
         }
 
-        private sealed class SceneToolbarElement : MainToolbarElement
+        private static void ShowSceneDropdown(Rect dropDownRect)
         {
-            public override VisualElement CreateElement()
+            List<EditorBuildSettingsScene> scenes = GetEnabledScenes();
+            string currentPath = SceneManager.GetActiveScene().path;
+            GenericMenu menu = new GenericMenu();
+
+            if (scenes.Count == 0)
             {
-                ApplyPlayModeStartScene();
-                return CreateSceneToolbarContent();
+                menu.AddDisabledItem(new GUIContent("No enabled scenes"));
             }
+
+            foreach (EditorBuildSettingsScene scene in scenes)
+            {
+                string label = GetSceneDropdownLabel(scene, scenes);
+                bool selected = string.Equals(scene.path, currentPath, StringComparison.Ordinal);
+                menu.AddItem(new GUIContent(label), selected, () => OpenScene(scene.path));
+            }
+
+            menu.DropDown(dropDownRect);
         }
 
-        private sealed class TimeToolbarElement : MainToolbarElement
+        private static void ShowStartSceneDropdown(Rect dropDownRect)
         {
-            public override VisualElement CreateElement()
+            List<EditorBuildSettingsScene> scenes = GetEnabledScenes();
+            EditorBuildSettingsScene selectedScene = GetSelectedStartScene();
+            bool enabled = EditorPrefs.GetBool(GetProjectScopedPlayFromBootstrapKey(), false);
+            GenericMenu menu = new GenericMenu();
+
+            menu.AddItem(
+                new GUIContent("Enable start scene"),
+                enabled,
+                () => SetPlayFromBootstrap(!enabled));
+
+            menu.AddSeparator(string.Empty);
+
+            if (scenes.Count == 0)
             {
-                ApplyPlayModeStartScene();
-                return CreateTimeToolbarContent();
+                menu.AddDisabledItem(new GUIContent("No enabled scenes"));
             }
+
+            foreach (EditorBuildSettingsScene scene in scenes)
+            {
+                string label = "Scene/" + GetSceneDropdownLabel(scene, scenes);
+                bool selected = selectedScene != null &&
+                    string.Equals(scene.path, selectedScene.path, StringComparison.Ordinal);
+
+                menu.AddItem(new GUIContent(label), selected, () =>
+                {
+                    EditorPrefs.SetString(GetProjectScopedStartScenePathKey(), scene.path);
+                    SetPlayFromBootstrap(EditorPrefs.GetBool(
+                        GetProjectScopedPlayFromBootstrapKey(),
+                        false));
+                });
+            }
+
+            menu.DropDown(dropDownRect);
+        }
+
+        private static string GetSceneDropdownLabel(
+            EditorBuildSettingsScene scene,
+            List<EditorBuildSettingsScene> scenes)
+        {
+            List<string> labels = GetSceneLabels(scenes);
+            int index = scenes.FindIndex(item =>
+                string.Equals(item.path, scene.path, StringComparison.Ordinal));
+
+            return index >= 0 && index < labels.Count
+                ? labels[index]
+                : Path.GetFileNameWithoutExtension(scene.path);
         }
 #else
         [EditorToolbarElement(SceneToolbarElementId)]
