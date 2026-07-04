@@ -7,7 +7,6 @@ using UnityEditor.SceneManagement;
 using UnityEditor.Toolbars;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UIElements;
 
 namespace Dreamy.EditorTools.Scene
 {
@@ -29,25 +28,8 @@ namespace Dreamy.EditorTools.Scene
         private const string TimeScaleKeyPrefix =
             "Dreamy.EditorTools.TimeScale.";
 
-        private const float SceneToolbarWidth = 390f;
-        private const float TimeToolbarWidth = 150f;
-        private const float ToolbarHeight = 22f;
         private const float MinTimeScale = 0f;
         private const float MaxTimeScale = 5f;
-
-        private static readonly float[] TimeScales =
-        {
-            0f,
-            0.25f,
-            0.5f,
-            1f,
-            2f,
-            4f,
-            5f
-        };
-
-        private static readonly List<IMGUIContainer> SceneGuis = new List<IMGUIContainer>();
-        private static readonly List<IMGUIContainer> TimeGuis = new List<IMGUIContainer>();
 
         static DreamyMainPlayToolbar()
         {
@@ -59,156 +41,49 @@ namespace Dreamy.EditorTools.Scene
             EditorBuildSettings.sceneListChanged += OnBuildSettingsSceneListChanged;
         }
 
-        private static VisualElement CreateSceneToolbarContent()
+        [MainToolbarElement(SceneToolbarElementId, defaultDockPosition = MainToolbarDockPosition.Left)]
+        public static IEnumerable<MainToolbarElement> InstantiateSceneToolbar()
         {
-            VisualElement root = CreateRoot(SceneToolbarElementId, SceneToolbarWidth);
-            root.style.marginRight = 4f;
+            yield return new MainToolbarButton(
+                new MainToolbarContent("Prev", "Open previous enabled scene"),
+                OpenPreviousScene);
 
-            IMGUIContainer sceneGui = new IMGUIContainer(DrawSceneToolbarGui)
-            {
-                name = "DreamySceneToolbarIMGUI"
-            };
-            sceneGui.style.width = SceneToolbarWidth;
-            sceneGui.style.height = ToolbarHeight;
+            yield return new MainToolbarDropdown(
+                new MainToolbarContent("Scenes", SceneToolbarTooltip),
+                ShowSceneDropdown);
 
-            root.Add(sceneGui);
-            SceneGuis.Add(sceneGui);
-            sceneGui.RegisterCallback<DetachFromPanelEvent>(_ => SceneGuis.Remove(sceneGui));
+            yield return new MainToolbarButton(
+                new MainToolbarContent("Reload", "Reload current scene"),
+                ReloadCurrentScene);
 
-            return root;
+            yield return new MainToolbarButton(
+                new MainToolbarContent("Next", "Open next enabled scene"),
+                OpenNextScene);
+
+            yield return new MainToolbarDropdown(
+                new MainToolbarContent("Start Scene", "Choose Play Mode start scene"),
+                ShowStartSceneDropdown);
         }
 
-        private static VisualElement CreateTimeToolbarContent()
+        [MainToolbarElement(TimeToolbarElementId, defaultDockPosition = MainToolbarDockPosition.Left)]
+        public static IEnumerable<MainToolbarElement> InstantiateTimeScaleToolbar()
         {
-            VisualElement root = CreateRoot(TimeToolbarElementId, TimeToolbarWidth);
-            root.style.marginLeft = 4f;
+            yield return new MainToolbarLabel(new MainToolbarContent("Time:"));
 
-            IMGUIContainer timeGui = new IMGUIContainer(DrawTimeToolbarGui)
-            {
-                name = "DreamyTimeToolbarIMGUI"
-            };
-            timeGui.style.width = TimeToolbarWidth;
-            timeGui.style.height = ToolbarHeight;
+            MainToolbarContent content = new MainToolbarContent(
+                "Time Scale",
+                TimeToolbarTooltip);
 
-            root.Add(timeGui);
-            TimeGuis.Add(timeGui);
-            timeGui.RegisterCallback<DetachFromPanelEvent>(_ => TimeGuis.Remove(timeGui));
+            yield return new MainToolbarSlider(
+                content,
+                EditorApplication.isPlaying ? Time.timeScale : GetSavedTimeScale(),
+                MinTimeScale,
+                MaxTimeScale,
+                SetTimeScale);
 
-            return root;
-        }
-
-        private static VisualElement CreateRoot(string name, float width)
-        {
-            VisualElement root = new VisualElement
-            {
-                name = name
-            };
-
-            root.style.flexDirection = FlexDirection.Row;
-            root.style.alignItems = Align.Center;
-            root.style.width = width;
-            root.style.height = ToolbarHeight;
-            root.style.flexShrink = 0f;
-            root.style.marginTop = 0f;
-            root.style.marginBottom = 0f;
-            root.style.paddingLeft = 0f;
-            root.style.paddingRight = 0f;
-            root.style.paddingTop = 0f;
-            root.style.paddingBottom = 0f;
-
-            return root;
-        }
-
-        private static void DrawSceneToolbarGui()
-        {
-            List<EditorBuildSettingsScene> scenes = GetEnabledScenes();
-            List<string> labels = GetSceneLabels(scenes);
-            int currentIndex = GetSafeCurrentSceneIndex(scenes);
-
-            GUILayout.BeginHorizontal(GUILayout.Width(SceneToolbarWidth), GUILayout.Height(ToolbarHeight));
-
-            using (new EditorGUI.DisabledScope(scenes.Count == 0))
-            {
-                if (GUILayout.Button("Prev", EditorStyles.toolbarButton, GUILayout.Width(38f), GUILayout.Height(20f)))
-                {
-                    OpenPreviousScene();
-                }
-
-                EditorGUI.BeginChangeCheck();
-                int nextIndex = EditorGUILayout.Popup(
-                    currentIndex,
-                    labels.ToArray(),
-                    EditorStyles.toolbarPopup,
-                    GUILayout.Width(150f),
-                    GUILayout.Height(20f));
-
-                if (EditorGUI.EndChangeCheck() &&
-                    nextIndex >= 0 &&
-                    nextIndex < scenes.Count)
-                {
-                    OpenScene(scenes[nextIndex].path);
-                }
-
-                if (GUILayout.Button("Reload", EditorStyles.toolbarButton, GUILayout.Width(54f), GUILayout.Height(20f)))
-                {
-                    ReloadCurrentScene();
-                }
-
-                if (GUILayout.Button("Next", EditorStyles.toolbarButton, GUILayout.Width(38f), GUILayout.Height(20f)))
-                {
-                    OpenNextScene();
-                }
-            }
-
-            if (GUILayout.Button(
-                    "Start Scene",
-                    EditorStyles.toolbarButton,
-                    GUILayout.Width(90f),
-                    GUILayout.Height(20f)))
-            {
-                Rect buttonRect = GUILayoutUtility.GetLastRect();
-                UnityEditor.PopupWindow.Show(
-                    GUIUtility.GUIToScreenRect(buttonRect),
-                    new StartScenePopup());
-            }
-
-            GUILayout.EndHorizontal();
-        }
-
-        private static void DrawTimeToolbarGui()
-        {
-            List<string> labels = GetTimeScaleLabels();
-            int currentIndex = GetTimeScaleIndex();
-
-            GUILayout.BeginHorizontal(GUILayout.Width(TimeToolbarWidth), GUILayout.Height(ToolbarHeight));
-
-            GUILayout.Label("Time", EditorStyles.miniLabel, GUILayout.Width(32f), GUILayout.Height(20f));
-
-            EditorGUI.BeginChangeCheck();
-            int nextIndex = EditorGUILayout.Popup(
-                currentIndex,
-                labels.ToArray(),
-                EditorStyles.toolbarPopup,
-                GUILayout.Width(62f),
-                GUILayout.Height(20f));
-
-            if (EditorGUI.EndChangeCheck() &&
-                nextIndex >= 0 &&
-                nextIndex < TimeScales.Length)
-            {
-                SetSavedTimeScale(TimeScales[nextIndex]);
-            }
-
-            if (GUILayout.Button(
-                    "Reset",
-                    EditorStyles.toolbarButton,
-                    GUILayout.Width(46f),
-                    GUILayout.Height(20f)))
-            {
-                SetSavedTimeScale(1f);
-            }
-
-            GUILayout.EndHorizontal();
+            yield return new MainToolbarButton(
+                new MainToolbarContent("Reset", "Reset time scale to 1"),
+                () => SetTimeScale(1f));
         }
 
         internal static void OpenPreviousScene()
@@ -348,36 +223,8 @@ namespace Dreamy.EditorTools.Scene
 
         private static void RepaintToolbar()
         {
-#if UNITY_6000_4_OR_NEWER
             MainToolbar.Refresh(SceneToolbarElementId);
             MainToolbar.Refresh(TimeToolbarElementId);
-#else
-            for (int i = SceneGuis.Count - 1; i >= 0; i--)
-            {
-                IMGUIContainer gui = SceneGuis[i];
-
-                if (gui == null || gui.panel == null)
-                {
-                    SceneGuis.RemoveAt(i);
-                    continue;
-                }
-
-                gui.MarkDirtyRepaint();
-            }
-
-            for (int i = TimeGuis.Count - 1; i >= 0; i--)
-            {
-                IMGUIContainer gui = TimeGuis[i];
-
-                if (gui == null || gui.panel == null)
-                {
-                    TimeGuis.RemoveAt(i);
-                    continue;
-                }
-
-                gui.MarkDirtyRepaint();
-            }
-#endif
         }
 
         private static int GetCurrentSceneIndex()
@@ -390,44 +237,6 @@ namespace Dreamy.EditorTools.Scene
                     scene.path,
                     currentPath,
                     StringComparison.Ordinal));
-        }
-
-        private static int GetSafeCurrentSceneIndex(List<EditorBuildSettingsScene> scenes)
-        {
-            if (scenes == null || scenes.Count == 0)
-            {
-                return 0;
-            }
-
-            int currentIndex = GetCurrentSceneIndex();
-
-            return currentIndex < 0
-                ? 0
-                : Mathf.Clamp(currentIndex, 0, scenes.Count - 1);
-        }
-
-        private static int GetTimeScaleIndex()
-        {
-            float selectedTimeScale = EditorApplication.isPlaying
-                ? Time.timeScale
-                : GetSavedTimeScale();
-            int index = Array.FindIndex(TimeScales, value =>
-                Mathf.Approximately(value, selectedTimeScale));
-
-            if (index >= 0)
-            {
-                return index;
-            }
-
-            int defaultIndex = Array.IndexOf(TimeScales, 1f);
-            return defaultIndex >= 0 ? defaultIndex : 0;
-        }
-
-        private static List<string> GetTimeScaleLabels()
-        {
-            return TimeScales
-                .Select(value => value.ToString("0.##") + "x")
-                .ToList();
         }
 
         private static List<string> GetSceneLabels(List<EditorBuildSettingsScene> scenes)
@@ -496,13 +305,16 @@ namespace Dreamy.EditorTools.Scene
             return EditorPrefs.GetFloat(GetProjectScopedTimeScaleKey(), 1f);
         }
 
-        private static void SetSavedTimeScale(float value)
+        private static void SetTimeScale(float value)
         {
             value = Mathf.Clamp(value, MinTimeScale, MaxTimeScale);
-            EditorPrefs.SetFloat(GetProjectScopedTimeScaleKey(), value);
             if (EditorApplication.isPlaying)
             {
                 Time.timeScale = value;
+            }
+            else
+            {
+                EditorPrefs.SetFloat(GetProjectScopedTimeScaleKey(), value);
             }
 
             RepaintToolbar();
@@ -521,117 +333,6 @@ namespace Dreamy.EditorTools.Scene
                 string.Empty);
             return scenes.FirstOrDefault(scene => scene.path == savedPath) ??
                    scenes[0];
-        }
-
-        private sealed class StartScenePopup : PopupWindowContent
-        {
-            public override Vector2 GetWindowSize()
-            {
-                return new Vector2(300f, 72f);
-            }
-
-            public override void OnGUI(Rect rect)
-            {
-                List<EditorBuildSettingsScene> scenes = GetEnabledScenes();
-                bool enabled = EditorPrefs.GetBool(
-                    GetProjectScopedPlayFromBootstrapKey(),
-                    false);
-
-                EditorGUI.BeginChangeCheck();
-                bool nextEnabled = EditorGUILayout.ToggleLeft(
-                    "Enable start scene",
-                    enabled);
-                if (EditorGUI.EndChangeCheck())
-                {
-                    SetPlayFromBootstrap(nextEnabled);
-                }
-
-                using (new EditorGUI.DisabledScope(scenes.Count == 0))
-                {
-                    List<string> labels = GetSceneLabels(scenes);
-                    EditorBuildSettingsScene selected = GetSelectedStartScene();
-                    int selectedIndex = selected == null
-                        ? 0
-                        : Mathf.Max(0, scenes.FindIndex(
-                            scene => scene.path == selected.path));
-
-                    EditorGUI.BeginChangeCheck();
-                    int nextIndex = EditorGUILayout.Popup(
-                        "Scene",
-                        selectedIndex,
-                        labels.ToArray());
-                    if (EditorGUI.EndChangeCheck() &&
-                        nextIndex >= 0 &&
-                        nextIndex < scenes.Count)
-                    {
-                        EditorPrefs.SetString(
-                            GetProjectScopedStartScenePathKey(),
-                            scenes[nextIndex].path);
-                        SetPlayFromBootstrap(nextEnabled);
-                    }
-                }
-            }
-        }
-
-        private static string StableHash(string text)
-        {
-            unchecked
-            {
-                const ulong offsetBasis = 14695981039346656037UL;
-                const ulong prime = 1099511628211UL;
-
-                ulong hash = offsetBasis;
-
-                foreach (char character in text ?? string.Empty)
-                {
-                    hash ^= character;
-                    hash *= prime;
-                }
-
-                return hash.ToString("X16");
-            }
-        }
-
-#if UNITY_6000_4_OR_NEWER
-        [MainToolbarElement(SceneToolbarElementId, defaultDockPosition = MainToolbarDockPosition.Left)]
-        public static IEnumerable<MainToolbarElement> InstantiateSceneToolbar()
-        {
-            ApplyPlayModeStartScene();
-
-            yield return new MainToolbarButton(
-                new MainToolbarContent("Prev", "Open previous enabled scene"),
-                OpenPreviousScene);
-
-            yield return new MainToolbarDropdown(
-                new MainToolbarContent("Scenes", SceneToolbarTooltip),
-                ShowSceneDropdown);
-
-            yield return new MainToolbarButton(
-                new MainToolbarContent("Reload", "Reload current scene"),
-                ReloadCurrentScene);
-
-            yield return new MainToolbarButton(
-                new MainToolbarContent("Next", "Open next enabled scene"),
-                OpenNextScene);
-
-            yield return new MainToolbarDropdown(
-                new MainToolbarContent("Start Scene", "Choose Play Mode start scene"),
-                ShowStartSceneDropdown);
-        }
-
-        [MainToolbarElement(TimeToolbarElementId, defaultDockPosition = MainToolbarDockPosition.Left)]
-        public static MainToolbarElement InstantiateTimeScaleToolbar()
-        {
-            MainToolbarContent content = new MainToolbarContent(
-                "Time Scale",
-                TimeToolbarTooltip);
-
-            return new MainToolbarSlider(
-                content,
-                EditorApplication.isPlaying ? Time.timeScale : GetSavedTimeScale(),
-                MinTimeScale,
-                MaxTimeScale,
-                SetSavedTimeScale);
         }
 
         private static void ShowSceneDropdown(Rect dropDownRect)
@@ -704,26 +405,24 @@ namespace Dreamy.EditorTools.Scene
                 ? labels[index]
                 : Path.GetFileNameWithoutExtension(scene.path);
         }
-#else
-        [EditorToolbarElement(SceneToolbarElementId)]
-        private sealed class SceneToolbarElement : VisualElement
-        {
-            public SceneToolbarElement()
-            {
-                Add(CreateSceneToolbarContent());
-                ApplyPlayModeStartScene();
-            }
-        }
 
-        [EditorToolbarElement(TimeToolbarElementId)]
-        private sealed class TimeToolbarElement : VisualElement
+        private static string StableHash(string text)
         {
-            public TimeToolbarElement()
+            unchecked
             {
-                Add(CreateTimeToolbarContent());
-                ApplyPlayModeStartScene();
+                const ulong offsetBasis = 14695981039346656037UL;
+                const ulong prime = 1099511628211UL;
+
+                ulong hash = offsetBasis;
+
+                foreach (char character in text ?? string.Empty)
+                {
+                    hash ^= character;
+                    hash *= prime;
+                }
+
+                return hash.ToString("X16");
             }
         }
-#endif
     }
 }
